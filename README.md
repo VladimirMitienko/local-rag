@@ -16,13 +16,41 @@ SQLite FTS5 (BM25 по основам слов)        векторы в том 
         rag search  /  Claude Code: search_docs
 ```
 
+## Запуск после скачивания
+
+Нужны macOS, Python 3.11+ и ~6 ГБ свободного места. Код — в `~/local-rag`.
+
+1. **Установить зависимости** (3–5 минут):
+   ```bash
+   cd ~/local-rag && python3 -m venv .venv && .venv/bin/pip install -e .
+   ```
+2. **Сделать команду `rag` доступной**, затем открыть новый Терминал:
+   ```bash
+   mkdir -p ~/.local/bin && ln -sf ~/local-rag/.venv/bin/rag ~/.local/bin/rag && echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+   ```
+3. **Проиндексировать документы** (при первом запуске скачается модель ~2,3 ГБ; путь к папке можно перетащить в Терминал из Finder):
+   ```bash
+   rag index "/путь/к/документам" -c docs
+   ```
+4. **Проверить поиск:**
+   ```bash
+   rag search "ваш вопрос"
+   ```
+5. **Подключить к Claude Code** (по желанию; выполнить в папке проекта, затем открыть новую сессию Claude):
+   ```bash
+   claude mcp add docs-rag --scope local -- ~/local-rag/.venv/bin/rag-mcp
+   ```
+
+После изменения документов — `rag update`. Если `rag` не находится — откройте новый Терминал; нет доступа к папке —
+Системные настройки → Конфиденциальность и безопасность → Файлы и папки → разрешить Терминалу.
+
 ## Где что лежит
 
 | Путь | Что это |
 |---|---|
-| `~/Claude/RAG/rag/` | код (парсеры, чанкер, индекс, CLI, MCP-сервер) |
-| `~/Claude/RAG/data/index.db` | индекс — один файл; удалите его, чтобы начать с нуля |
-| `~/Claude/RAG/.venv/` | Python-окружение |
+| `~/local-rag/rag/` | код (парсеры, чанкер, индекс, CLI, MCP-сервер) |
+| `~/local-rag/data/index.db` | индекс — один файл; удалите его, чтобы начать с нуля |
+| `~/local-rag/.venv/` | Python-окружение |
 | `~/.cache/huggingface/hub/models--BAAI--bge-m3` | модель эмбеддингов (скачана один раз, дальше работает офлайн) |
 | `~/.local/bin/rag` | ссылка на команду `rag` |
 
@@ -42,7 +70,7 @@ rag index "/путь/к/папке" -c имя_коллекции
 Индексируйте из обычного Терминала — он запросит доступ один раз:
 
 ```bash
-rag index "/Users/mva/Documents/РДС/AI Rag" -c rds
+rag index "$HOME/Documents/Моя документация" -c docs
 ```
 
 MCP-серверу доступ к исходникам не нужен: он читает только `data/index.db`.
@@ -81,8 +109,7 @@ rag doc "черновик"                               # весь докуме
 
 ## 4. Работать через Claude Code
 
-Сервер `docs-rag` подключён к проекту «Производственный учет» (scope local). В **новой** сессии этого проекта
-у Claude появятся инструменты:
+После подключения (шаг 5 в «Запуске») в **новой** сессии проекта у Claude появятся инструменты:
 
 | Инструмент | Что делает |
 |---|---|
@@ -102,7 +129,7 @@ rag doc "черновик"                               # весь докуме
 Подключить к другому проекту (выполнить в папке того проекта):
 
 ```bash
-claude mcp add docs-rag --scope local -- /Users/mva/Claude/RAG/.venv/bin/rag-mcp
+claude mcp add docs-rag --scope local -- ~/local-rag/.venv/bin/rag-mcp
 ```
 
 Для всех проектов сразу — `--scope user` вместо `--scope local`. Отключить — `claude mcp remove docs-rag -s local`.
@@ -136,4 +163,4 @@ claude mcp add docs-rag --scope local -- /Users/mva/Claude/RAG/.venv/bin/rag-mcp
 | PDF с ⚠ «нужен OCR» | это скан; прогнать через OCR (например, `ocrmypdf`) и проиндексировать результат |
 | В Claude нет инструментов `docs-rag` | открыть новую сессию; `claude mcp get docs-rag` должен показать ✔ Connected |
 | Хочу другую модель эмбеддингов | удалить `data/index.db`, затем `RAG_MODEL=<модель> rag index …`; тот же `RAG_MODEL` задать MCP-серверу (`claude mcp add … -e RAG_MODEL=…`). Векторы разных моделей несовместимы |
-| Отдельный индекс под другой проект | `RAG_DB=~/Claude/RAG/data/rds.db rag index …` (и тот же `RAG_DB` в env MCP-сервера) |
+| Отдельный индекс под другой проект | `RAG_DB=~/local-rag/data/other.db rag index …` (и тот же `RAG_DB` в env MCP-сервера) |

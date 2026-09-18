@@ -1,0 +1,27 @@
+[project]
+name = "local-rag"
+version = "0.1.0"
+description = "Локальный RAG по проектной документации: гибридный поиск (bge-m3 + BM25) + MCP-сервер для Claude Code"
+requires-python = ">=3.11"
+dependencies = [
+    "sentence-transformers",
+    "numpy",
+    "python-docx",
+    "pymupdf",
+    "beautifulsoup4",
+    "openpyxl",
+    "python-pptx",
+    "PyStemmer",
+    "mcp[cli]>=2",
+]
+
+[project.scripts]
+rag = "rag.cli:main"
+rag-mcp = "rag.mcp_server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["rag"]

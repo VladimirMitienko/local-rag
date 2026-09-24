@@ -59,6 +59,27 @@ def stems(text: str, query: bool = False) -> list[str]:
     return out
 
 
+# ключ задачи (IDPPA-7287 → 7287: в release notes и постановках номера часто без префикса),
+# одиночный номер 4–6 цифр не из даты/версии, CamelCase-имя (FirstOmProp), ENV (SEND_TO_ZIF_EVENT_RETRY_COUNT)
+_ID_PATTERNS = (
+    re.compile(r"\b[A-Za-z]{2,}-(\d+)\b"),
+    re.compile(r"(?<![\d.\-])(\d{4,6})(?![\d.])"),
+    re.compile(r"\b(\w*[a-z]\w*[A-Z]\w*)\b"),
+    re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b"),
+)
+
+
+def identifier_terms(query: str) -> list[str]:
+    """FTS-термы для точных идентификаторов запроса (в том же виде, в каком их пишет stems())."""
+    out = []
+    for pat in _ID_PATTERNS:
+        for m in pat.finditer(query):
+            s = stems(m.group(1))
+            if s:
+                out.append(s[0].replace('"', ""))  # s[0] — слово целиком, без разбивки CamelCase
+    return list(dict.fromkeys(out))
+
+
 # ---------------------------------------------------------------- эмбеддинги
 
 class Embedder:
@@ -76,9 +97,14 @@ class Embedder:
         from sentence_transformers import SentenceTransformer
 
         transformers.logging.set_verbosity_error()
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        if torch.cuda.is_available():            # видеокарта NVIDIA (Windows/Linux)
+            device = "cuda"
+        elif torch.backends.mps.is_available():  # Apple Silicon
+            device = "mps"
+        else:
+            device = "cpu"                       # медленнее, но работает везде
         m = SentenceTransformer(self.model_name, device=device)
-        if device == "mps":
+        if device in ("cuda", "mps"):
             m = m.half()
         m.max_seq_length = MAX_SEQ_LEN
         self._model = m
@@ -149,7 +175,7 @@ _UNDER = "(path=? OR substr(path, 1, ?)=?)"
 
 def _under_args(root: Path) -> tuple:
     """Аргументы для _UNDER: сам путь или всё, что лежит внутри него (без LIKE — в путях бывает «_»)."""
-    prefix = str(root).rstrip("/") + "/"
+    prefix = str(root).rstrip(os.sep) + os.sep
     return (str(root), len(prefix), prefix)
 
 
@@ -220,10 +246,11 @@ class Index:
             else:
                 open(root, "rb").close()
         except PermissionError:
-            raise PermissionError(
-                f"Нет доступа к {root}. macOS не даёт этому приложению читать папку — "
-                "запустите индексацию из Терминала или выдайте доступ в «Конфиденциальность и безопасность» "
-                "(индекс не тронут)") from None
+            hint = ("macOS не даёт этому приложению читать папку — запустите индексацию из Терминала "
+                    "или выдайте доступ в «Конфиденциальность и безопасность»"
+                    if sys.platform == "darwin" else
+                    "нет прав на чтение папки — проверьте доступ к диску/сетевой папке")
+            raise PermissionError(f"Нет доступа к {root}: {hint} (индекс не тронут)") from None
         files = self.discover(root)
         known = {r[0]: r for r in self.db.execute(
             "SELECT path, id, sha1, mtime, size FROM documents WHERE " + _UNDER, _under_args(root))}
@@ -345,6 +372,17 @@ class Index:
         res = [r[0] for r in rows if allowed is None or r[0] in allowed]
         return res[:n]
 
+    def _exact(self, query: str, n: int, allowed: set[int] | None) -> list[int]:
+        """Чанки, где дословно встречаются идентификаторы из запроса (ключи задач, имена функций, ENV)."""
+        terms = identifier_terms(query)
+        if not terms:
+            return []
+        match = " OR ".join('"' + t + '"' for t in terms)
+        rows = self.db.execute(
+            "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts) LIMIT ?",
+            (match, n * 4 if allowed is not None else n)).fetchall()
+        return [r[0] for r in rows if allowed is None or r[0] in allowed][:n]
+
     def search(self, query: str, k: int = 8, collection: str | None = None, path_contains: str | None = None,
                mode: str = "hybrid", candidates: int = 50) -> list[Hit]:
         allowed = self._allowed(collection, path_contains)
@@ -356,6 +394,11 @@ class Index:
         for ranks in (d_rank, k_rank):
             for cid, r in ranks.items():
                 scores[cid] = scores.get(cid, 0.0) + 1.0 / (60 + r)
+        if mode == "hybrid":
+            # эмбеддинги не различают «7287» и «7290» — дословное совпадение идентификатора поднимаем наверх
+            for r, cid in enumerate(self._exact(query, candidates, allowed), 1):
+                scores[cid] = scores.get(cid, 0.0) + 1.0 / r
+                k_rank.setdefault(cid, r)
         best = sorted(scores, key=scores.get, reverse=True)[:k]
         return [self._hit(cid, scores[cid], d_rank.get(cid), k_rank.get(cid)) for cid in best]
 

@@ -20,6 +20,10 @@ from pathlib import Path
 
 from .config import DB_PATH
 
+if sys.platform == "win32":  # консоль Windows по умолчанию не в UTF-8
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
 TTY = sys.stdout.isatty()
 
 

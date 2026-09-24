@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 RAG_HOME = Path(os.environ.get("RAG_HOME", Path(__file__).resolve().parent.parent))
@@ -16,6 +17,9 @@ CHUNK_MIN = 400
 SUPPORTED = {
     ".docx", ".pdf", ".md", ".markdown", ".txt", ".html", ".htm",
     ".xlsx", ".xlsm", ".csv", ".pptx",
-    ".doc", ".rtf", ".odt",  # через macOS textutil
 }
+# Старые форматы Word/OpenOffice читаются утилитой textutil, она есть только в macOS.
+# На Windows/Linux такие файлы нужно пересохранить в .docx.
+if sys.platform == "darwin":
+    SUPPORTED |= {".doc", ".rtf", ".odt"}
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".idea", ".vscode"}

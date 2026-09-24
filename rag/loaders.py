@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -298,6 +299,9 @@ def load_txt(path: Path, text: str | None = None) -> Parsed:
 
 def load_textutil(path: Path) -> Parsed:
     """.doc/.rtf/.odt — через встроенный в macOS textutil."""
+    if sys.platform != "darwin":
+        raise RuntimeError(f"{path.suffix} читается только в macOS (утилитой textutil); "
+                           "пересохраните файл в .docx")
     out = subprocess.run(
         ["textutil", "-convert", "txt", "-stdout", str(path)],
         capture_output=True, check=True,

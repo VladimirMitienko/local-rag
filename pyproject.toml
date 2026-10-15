@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 rag = "rag.cli:main"
 rag-mcp = "rag.mcp_server:main"
+rag-sync = "rag.confluence_sync:main"
 
 [build-system]
 requires = ["setuptools>=68"]

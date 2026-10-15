@@ -1,0 +1,9 @@
+{
+  "base_url": "https://confluence.example.com/wiki",
+  "keychain_service": "confluence-pat",
+  "collection": "Документация",
+  "out_dir": "sources/confluence",
+  "roots": [
+    {"page_id": "123456789", "name": "Функциональные постановки"}
+  ]
+}

@@ -8,7 +8,9 @@ import re
 import sqlite3
 import sys
 import time
+import unicodedata
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 import numpy as np
@@ -179,6 +181,34 @@ def _under_args(root: Path) -> tuple:
     return (str(root), len(prefix), prefix)
 
 
+IGNORE_FILE = ".ragignore"
+
+
+def _nfc(s: str) -> str:
+    return unicodedata.normalize("NFC", s)  # имена файлов в macOS приходят в NFD
+
+
+def _read_ignore(root: Path) -> list[str]:
+    """Шаблоны из <корень>/.ragignore: по строке, # — комментарий. «Папка/» — вся папка,
+    шаблон без «/» сравнивается и с именем файла, иначе — с путём от корня (fnmatch)."""
+    f = root / IGNORE_FILE
+    if not f.is_file():
+        return []
+    lines = (_nfc(l.strip()) for l in f.read_text(encoding="utf-8").splitlines())
+    return [l for l in lines if l and not l.startswith("#")]
+
+
+def _ignored(rel: Path, patterns: list[str], is_dir: bool = False) -> bool:
+    path = _nfc(rel.as_posix())
+    for pat in patterns:
+        if pat.endswith("/"):
+            if is_dir and fnmatch(path, pat.rstrip("/")):
+                return True
+        elif fnmatch(path, pat) or ("/" not in pat and fnmatch(_nfc(rel.name), pat)):
+            return True
+    return False
+
+
 def _log(msg: str):
     print(msg, file=sys.stderr, flush=True)
 
@@ -222,14 +252,16 @@ class Index:
     def discover(root: Path) -> list[Path]:
         if root.is_file():
             return [root] if root.suffix.lower() in SUPPORTED else []
+        ignore = _read_ignore(root)
         files = []
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")
+                           and not _ignored((Path(dirpath) / d).relative_to(root), ignore, is_dir=True)]
             for fn in filenames:
                 if fn.startswith((".", "~$")):
                     continue
                 p = Path(dirpath) / fn
-                if p.suffix.lower() in SUPPORTED:
+                if p.suffix.lower() in SUPPORTED and not _ignored(p.relative_to(root), ignore):
                     files.append(p)
         return sorted(files)
 

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Ежедневная выгрузка Confluence → RAG. Шаблон: /Users/USER/local-rag заменяется на папку
+     установки командой из README (раздел «Автоматическая выгрузка из Confluence»). -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.local-rag.confluence-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/USER/local-rag/.venv/bin/rag-sync</string>
+    </array>
+    <!-- каждый день в 12:00; если Mac спал — запуск при пробуждении -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>12</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONUTF8</key><string>1</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/USER/local-rag/logs/confluence-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/USER/local-rag/logs/confluence-sync.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

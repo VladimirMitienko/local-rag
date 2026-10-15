@@ -317,7 +317,9 @@ def load_html(path: Path) -> Parsed:
     soup = BeautifulSoup(_read_text(path), "lxml")
     for t in soup(["script", "style", "nav", "header", "footer", "noscript"]):
         t.decompose()
-    for t in soup.find_all(["s", "del", "strike"]):
+    struck = soup.find_all(["s", "del", "strike"]) + soup.find_all(
+        "span", style=lambda v: v and "line-through" in v.replace(" ", ""))
+    for t in struck:
         inner = t.get_text(" ", strip=True)
         t.replace_with(f"~~{inner}~~" if inner else "")
     title = _clean(soup.title.get_text()) if soup.title and soup.title.get_text(strip=True) else path.stem
